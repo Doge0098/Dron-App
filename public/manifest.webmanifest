@@ -1,0 +1,12 @@
+{
+  "name": "Dron-App · Clima y normativa para drones en España",
+  "short_name": "Dron-App",
+  "description": "Viento y lluvia animados en un mapa 3D, zonas UAS de ENAIRE, aeródromos cercanos y normativa para tu dron.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "lang": "es",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
