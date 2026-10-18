@@ -294,13 +294,13 @@ function surroundingsChecks(s: Surroundings | null, drone: DroneProfile, scope: 
   if (!s) return [];
   const checks: Check[] = [];
   const where = scope === 'zone' ? 'En la zona' : 'Junto al punto';
-  if (!s.available) {
+  if (!s.available && s.buildings === 0) {
     checks.push({
       id: 'surroundings-zoom',
-      label: 'Entorno urbano e infraestructuras',
+      label: 'Edificios cercanos',
       level: 'info',
       value: 'Acerca el mapa',
-      detail: 'Con zoom 13 o más la app detecta edificios, carreteras y vías férreas en los datos del mapa.',
+      detail: 'A este zoom el mapa no incluye edificios: acércalo (zoom 13 o más) para detectarlos y comprobar si es entorno urbano.',
     });
   }
   const urban = s.buildings >= 3 || s.urbanLanduse.length > 0 || s.places.length > 0;
