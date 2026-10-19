@@ -8,7 +8,7 @@ import {
   ZONE_RULES,
   type RuleItem,
 } from '../data/regulations';
-import { openCategoryFor, type DroneProfile } from '../logic/drone';
+import { droneName, openCategoryFor, type DroneProfile } from '../logic/drone';
 import { ExternalLink, Section } from './ui';
 
 function Rules({ items }: { items: RuleItem[] }) {
@@ -29,20 +29,29 @@ function Rules({ items }: { items: RuleItem[] }) {
   );
 }
 
-export function RulesPanel({ drone }: { drone: DroneProfile }) {
+export function RulesPanel({ drone, onChooseDrone }: { drone: DroneProfile; onChooseDrone(): void }) {
   const info = openCategoryFor(drone);
   return (
     <div className="panel-body">
       <Section title="Tu caso">
-        <div className={`category-card${info.open ? '' : ' category-card--closed'}`}>
-          <strong className="category-card__headline">
-            {drone.brand} {drone.model}: {info.headline}
-          </strong>
-          <p>{info.peopleRule}</p>
-          <p className="small">
-            <strong>Formación:</strong> {info.competency}
-          </p>
-        </div>
+        {drone.generic ? (
+          <div className="category-card">
+            <p>Elige tu dron para saber en qué subcategoría puedes volar y qué formación y registro necesitas.</p>
+            <button type="button" className="button button--small button--primary" onClick={onChooseDrone}>
+              Elegir mi dron
+            </button>
+          </div>
+        ) : (
+          <div className={`category-card${info.open ? '' : ' category-card--closed'}`}>
+            <strong className="category-card__headline">
+              {droneName(drone)}: {info.headline}
+            </strong>
+            <p>{info.peopleRule}</p>
+            <p className="small">
+              <strong>Formación:</strong> {info.competency}
+            </p>
+          </div>
+        )}
       </Section>
 
       <Section title="Reglas básicas de la categoría abierta">

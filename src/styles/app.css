@@ -220,6 +220,11 @@ button {
   white-space: nowrap;
 }
 
+.drone-chip--missing {
+  border-color: rgba(245, 158, 11, 0.7);
+  background: rgba(245, 158, 11, 0.16);
+}
+
 /* ---------------------------------------------------------------- search */
 
 .search {
@@ -444,6 +449,10 @@ button {
 
 .empty strong {
   color: var(--text);
+}
+
+.empty .button {
+  margin-top: 4px;
 }
 
 /* ---------------------------------------------------------------- sections */
@@ -934,6 +943,92 @@ button {
   margin: 6px 0 0;
   font-size: 0.82rem;
   white-space: pre-line;
+}
+
+/* Contactos de la entidad responsable de cada restricción. */
+.contacts {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.contacts__title {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.contact {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--border);
+}
+
+.contact__name {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.contact__source {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.contact__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.contact__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: var(--text);
+  font-size: 0.82rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.contact__link:hover {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+.contact__link svg {
+  flex-shrink: 0;
+  color: #c4b5fd;
+}
+
+.contact__hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.link-button.contact__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  font-size: 0.78rem;
+}
+
+.check__body .contacts {
+  margin-top: 8px;
 }
 
 .badge {
@@ -1859,6 +1954,11 @@ button {
   animation: shoot var(--dur, 1.6s) ease-in infinite;
 }
 
+/* Por encima de la barra de dibujo, la brújula y la línea temporal (no del panel lateral). */
+.map-popup {
+  z-index: 10;
+}
+
 .map-popup .maplibregl-popup-content {
   background: var(--panel-solid);
   color: var(--text);
@@ -1882,7 +1982,7 @@ button {
 .popup {
   display: grid;
   gap: 10px;
-  max-height: 320px;
+  max-height: min(320px, 45vh);
   overflow-y: auto;
 }
 
@@ -1912,6 +2012,25 @@ button {
 
 .popup__meta {
   color: var(--muted);
+}
+
+.popup__contacts {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.popup__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+}
+
+.popup__link {
+  color: #c4b5fd;
+  overflow-wrap: anywhere;
 }
 
 .maplibregl-ctrl-bottom-right {

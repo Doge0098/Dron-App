@@ -11,13 +11,15 @@ import { Sidebar, type TabKey } from './components/Sidebar';
 import { TimeBar } from './components/TimeBar';
 import { WindCompass } from './components/WindCompass';
 import { ZonePanel } from './components/ZonePanel';
-import { DRONE_BY_ID, DRONES } from './data/drones';
+import { DRONE_BY_ID } from './data/drones';
 import { useAsync } from './hooks/useAsync';
 import { usePersistentState } from './hooks/usePersistentState';
 import { hourlyLevels } from './logic/assessment';
-import { profileFromModel, type DroneProfile } from './logic/drone';
+import { GENERIC_PROFILE, droneName, type DroneProfile } from './logic/drone';
+import { EMPTY_PILOT, type PilotProfile } from './logic/pilot';
 import { analyzeZone } from './logic/zoneAnalysis';
 import { ringAreaM2, ringBBox, ringCentroid, ringPerimeterM, type LngLatTuple } from './lib/geo';
+import { clearAppData } from './lib/storage';
 import { currentHour } from './lib/time';
 import type { DrawMode, DrawnShape } from './map/DrawController';
 import type { MapController, MapControllerCallbacks } from './map/MapController';
@@ -30,7 +32,6 @@ import { WIND_HEIGHTS, fetchPointForecast, hourAt, nearestHourIndex, type WindFi
 import { DEFAULT_LAYERS, type Basemap, type DrawnZone, type LayerToggles, type MapStatus } from './types';
 
 const HOURS = 48;
-const DEFAULT_MODEL = DRONE_BY_ID.get('dji-mini-4-pro') ?? DRONES[0];
 const isNarrow = () => window.matchMedia('(max-width: 760px)').matches;
 
 function makeZone(shape: DrawnShape): DrawnZone {
@@ -44,8 +45,12 @@ function makeZone(shape: DrawnShape): DrawnZone {
 }
 
 export default function App() {
-  const [storedDrone, setDrone] = usePersistentState<DroneProfile>('drone', profileFromModel(DEFAULT_MODEL));
-  const drone = storedDrone.modelId && !DRONE_BY_ID.has(storedDrone.modelId) ? profileFromModel(DEFAULT_MODEL) : storedDrone;
+  // Sin dron ni datos por defecto: cada instalación empieza de cero.
+  const [storedDrone, setDrone] = usePersistentState<DroneProfile | null>('drone', null);
+  const chosenDrone = storedDrone && (!storedDrone.modelId || DRONE_BY_ID.has(storedDrone.modelId)) ? storedDrone : null;
+  /** Para las evaluaciones: el dron elegido o, mientras no lo haya, un perfil prudente. */
+  const drone = chosenDrone ?? GENERIC_PROFILE;
+  const [pilot, setPilot] = usePersistentState<PilotProfile>('pilot', EMPTY_PILOT);
   const [layers, setLayers] = usePersistentState<LayerToggles>('layers', DEFAULT_LAYERS);
   const [basemap, setBasemap] = usePersistentState<Basemap>('basemap', 'vector');
   const [storedHeight, setHeight] = usePersistentState<WindHeight>('windHeight', 120);
@@ -59,7 +64,7 @@ export default function App() {
   const [zone, setZone] = useState<DrawnZone | null>(null);
   const [drawMode, setDrawModeState] = useState<DrawMode | null>(null);
   const [drawVertices, setDrawVertices] = useState(0);
-  const [tab, setTab] = useState<TabKey>('place');
+  const [tab, setTab] = useState<TabKey>(chosenDrone ? 'place' : 'drone');
   const [sheetOpen, setSheetOpen] = useState(() => !isNarrow());
   const [status, setStatus] = useState<MapStatus>({ weatherLoading: false, weatherError: null, zones: 'idle', zoneCount: 0 });
   const [radar, setRadar] = useState<{ index: number; count: number; time: number } | null>(null);
@@ -142,11 +147,11 @@ export default function App() {
     map?.setQueryPoint(point, w ? { dirFrom: w.dir, speed: w.speed } : null);
   }, [map, point, pointHour, height]);
 
+  useEffect(() => map?.setRequestContext({ time, heightM: height, drone: chosenDrone, pilot }), [map, time, height, chosenDrone, pilot]);
+
   const onReady = useCallback((c: MapController) => {
     mapRef.current = c;
     setMap(c);
-    const center = c.map.getCenter();
-    setPoint((p) => p ?? [center.lng, center.lat]);
   }, []);
 
   const setDrawMode = useCallback((mode: DrawMode | null) => {
@@ -235,16 +240,28 @@ export default function App() {
     return { speed, dirFrom, gusts: null, source: 'Centro del mapa' };
   }, [pointHour, point, height, placeName, field, view.center]);
 
-  const droneLabel = drone.modelId ? `${drone.brand} ${drone.model}` : drone.model || 'Mi dron';
+  const onClearData = () => {
+    if (
+      !window.confirm(
+        '¿Borrar de este dispositivo tu nombre, tu ID de piloto, el nº de serie, el dron elegido y las preferencias del mapa? No se puede deshacer.',
+      )
+    ) {
+      return;
+    }
+    clearAppData();
+    window.location.replace(window.location.pathname);
+  };
 
   let panel;
-  if (tab === 'drone') panel = <DronePanel drone={drone} onChange={setDrone} />;
+  if (tab === 'drone')
+    panel = <DronePanel drone={chosenDrone} onChange={setDrone} pilot={pilot} onPilot={setPilot} onClearData={onClearData} />;
   else if (tab === 'zone')
     panel = (
       <ZonePanel
         zone={zone}
         analysis={analysis}
         drone={drone}
+        pilot={pilot}
         time={time}
         start={start}
         hours={HOURS}
@@ -258,7 +275,7 @@ export default function App() {
         onFocusZone={focusZone}
       />
     );
-  else if (tab === 'rules') panel = <RulesPanel drone={drone} />;
+  else if (tab === 'rules') panel = <RulesPanel drone={drone} onChooseDrone={() => setTab('drone')} />;
   else
     panel = (
       <PlacePanel
@@ -268,6 +285,7 @@ export default function App() {
         zones={pointZones}
         aerodromes={pointAerodromes}
         drone={drone}
+        pilot={pilot}
         time={time}
         start={start}
         hours={HOURS}
@@ -275,13 +293,16 @@ export default function App() {
         kp={kp.data}
         surroundings={pointSurroundings}
         onSelectTime={setTime}
+        onLocate={onLocate}
+        locating={locating}
       />
     );
 
   return (
     <div className="app">
       <Header
-        droneLabel={droneLabel}
+        droneLabel={chosenDrone ? droneName(chosenDrone) : 'Elige tu dron'}
+        droneMissing={!chosenDrone}
         onSearch={onSearch}
         onLocate={onLocate}
         locating={locating}

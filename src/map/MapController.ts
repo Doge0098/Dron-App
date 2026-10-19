@@ -14,13 +14,18 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Feature, FeatureCollection } from 'geojson';
+import { AERODROME_CONTACT } from '../data/contacts';
+import { formatPhone, mailtoHref, telHref, webLabel, type ContactInfo } from '../lib/contacts';
 import { padBBox, type BBox, type LngLatTuple } from '../lib/geo';
 import { WIND_COLOR_STOPS, dirTowards, msToKmh } from '../lib/wind';
+import { requestDraft, type MailDraft, type RequestContext, type RequestTarget } from '../logic/contactRequest';
 import { aerodromePoints, aerodromeZoneFeatures, AERODROME_TYPE_LABEL } from '../services/aerodromes';
 import {
   SEVERITY_LABEL,
   ZONE_LAYERS,
   queryZones,
+  zoneContacts,
+  zoneTitle,
   type UasZone,
 } from '../services/enaire';
 import { isAbortError } from '../services/http';
@@ -143,6 +148,34 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   return node;
 }
 
+function link(href: string, text: string, external = false): HTMLAnchorElement {
+  const a = el('a', 'popup__link', text);
+  a.href = href;
+  if (external) {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  }
+  return a;
+}
+
+/** Contactos de la entidad responsable, con enlaces para llamar, escribir (correo ya relleno) o ir a su web. */
+function contactsElement(contacts: ContactInfo[], draft: MailDraft | null): HTMLElement | null {
+  if (!contacts.length) return null;
+  const box = el('div', 'popup__contacts');
+  for (const c of contacts) {
+    box.append(el('p', 'popup__meta', `${c.source === 'zone' ? 'Contacto' : 'Contacto oficial'}: ${c.name}`));
+    const links = el('p', 'popup__links');
+    for (const p of c.phones) links.append(link(telHref(p.number), `Tel. ${formatPhone(p.number)}`));
+    for (const e of c.emails) links.append(link(mailtoHref(e, draft?.subject, draft?.body), e));
+    if (c.web) links.append(link(c.web, `Web: ${webLabel(c.web)}`, true));
+    if (links.childElementCount) box.append(links);
+  }
+  return box;
+}
+
+/** Datos del vuelo para rellenar las solicitudes desde los avisos del mapa (el lugar es el punto pulsado). */
+export type MapRequestContext = Omit<RequestContext, 'placeName' | 'point' | 'pointIsCenter'>;
+
 export class MapController {
   readonly map: MapLibreMap;
   private readonly styles: BaseStyles;
@@ -177,6 +210,7 @@ export class MapController {
   private radarFetchedAt = 0;
   private queryMarker: Marker | null = null;
   private queryArrow: HTMLElement | null = null;
+  private requestContext: MapRequestContext | null = null;
   private destroyed = false;
 
   static async create(container: HTMLElement, init: MapControllerInit, callbacks: MapControllerCallbacks) {
@@ -558,6 +592,10 @@ export class MapController {
     this.applyField();
   }
 
+  setRequestContext(ctx: MapRequestContext) {
+    this.requestContext = ctx;
+  }
+
   setDrawMode(mode: DrawMode | null) {
     this.popup.remove();
     this.draw.setMode(mode);
@@ -683,6 +721,10 @@ export class MapController {
     this.callbacks.onMapClick([e.lngLat.lng, e.lngLat.lat]);
   };
 
+  private draftFor(target: RequestTarget, at: LngLatTuple): MailDraft | null {
+    return this.requestContext ? requestDraft(target, { ...this.requestContext, placeName: null, point: at }) : null;
+  }
+
   private showPopup(at: LngLatTuple, features: MapGeoJSONFeature[]) {
     const root = el('div', 'popup');
     const seen = new Set<string>();
@@ -699,6 +741,9 @@ export class MapController {
         );
         if (props.icao) item.append(el('p', 'popup__meta', `OACI ${props.icao}`));
         item.append(el('p', 'popup__text', 'Antes de volar cerca, consulta la zona oficial en ENAIRE y coordina con el gestor si procede.'));
+        const name = `${String(props.name ?? 'Aeródromo')}${props.icao ? ` (${props.icao})` : ''}`;
+        const contacts = contactsElement([AERODROME_CONTACT], this.draftFor({ name, kind: 'aeródromo o helipuerto cercano' }, at));
+        if (contacts) item.append(contacts);
       } else {
         const zone = this.zoneIndex.get(String(props.uid));
         if (!zone) continue;
@@ -711,7 +756,8 @@ export class MapController {
           const text = zone.message.length > 420 ? `${zone.message.slice(0, 420)}…` : zone.message;
           item.append(el('p', 'popup__text', text));
         }
-        if (zone.contact) item.append(el('p', 'popup__meta', `Contacto: ${zone.contact}`));
+        const contacts = contactsElement(zoneContacts(zone), this.draftFor({ name: zoneTitle(zone), kind: zone.layerLabel }, at));
+        if (contacts) item.append(contacts);
       }
       root.append(item);
     }

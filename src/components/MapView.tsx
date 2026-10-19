@@ -34,8 +34,6 @@ export function MapView({ init, callbacks, onReady }: MapViewProps) {
           return;
         }
         controller = c;
-        // Acceso de depuración desde la consola o las pruebas: ?debug
-        if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window, { dronMap: c.map });
         setState('ready');
         onReadyRef.current(c);
       })

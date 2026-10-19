@@ -3,6 +3,8 @@
 // Si fallan (red, CORS, bloqueo regional) la app lo indica y enlaza al visor oficial.
 
 import type { Feature, FeatureCollection, Geometry, MultiPolygon, Polygon, Position } from 'geojson';
+import { LAYER_CONTACTS } from '../data/contacts';
+import { contactName, extractContacts, normalizeWeb, parsePhoneField, type ContactInfo } from '../lib/contacts';
 import type { BBox, LngLatTuple, Ring } from '../lib/geo';
 import { pointInRing } from '../lib/geo';
 import { HttpError, fetchJson } from './http';
@@ -173,7 +175,8 @@ export interface UasZone {
   lower: string;
   upper: string;
   schedule: string;
-  contact: string;
+  /** Contacto publicado por ENAIRE para la zona (`null` si no publica ninguno). */
+  contact: ContactInfo | null;
   validity: string;
   severity: ZoneSeverity;
   geometry: Geometry;
@@ -349,7 +352,12 @@ export function classifySeverity(layer: ZoneLayerDef, rawProps: Props): ZoneSeve
     if (/^[A-Z]{4}(45|90)$/.test(ident)) return 'caution';
     if (/^[A-Z]{4}0$/.test(ident)) return 'authorization';
   }
-  if (/NO ES NECESARIO COORDINAR|SIN NECESIDAD DE COORDINA|(?<!NO )PERMITID[OA]S? (LAS )?OPERACIONES|(?<!NO )PERMITIDO EL VUELO/.test(text)) {
+  // Sin los "NO PERMITIDO…" para que no cuenten como permiso (sin lookbehind: Safari < 16.4 no lo admite).
+  const affirmative = text.replace(/NO PERMITID[OA]S?/g, '');
+  if (
+    /NO ES NECESARIO COORDINAR|SIN NECESIDAD DE COORDINA/.test(text) ||
+    /PERMITID[OA]S? (LAS )?OPERACIONES|PERMITIDO EL VUELO/.test(affirmative)
+  ) {
     return 'caution';
   }
   if (/(EXCEPTO|SALVO|PREVIA|REQUIERE|SIN) (COORDINACION|AUTORIZACION)|COORDINAR CON|COORDINACION CON/.test(text)) {
@@ -358,6 +366,59 @@ export function classifySeverity(layer: ZoneLayerDef, rawProps: Props): ZoneSeve
   if (/NO PERMITIDO|PROHIBID/.test(text)) return 'prohibited';
   if (/AUTORIZ|PERMISO/.test(text) && SEVERITY_ORDER[layer.defaultSeverity] < SEVERITY_ORDER.authorization) return 'authorization';
   return layer.defaultSeverity;
+}
+
+/** "P15D" → "15 días", "PT48H" → "48 horas" (duraciones ISO 8601 de ED-318). */
+export function formatIsoDuration(value: string): string {
+  const m = value.trim().toUpperCase().match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/);
+  if (!m || !(m[1] || m[2] || m[3])) return value.trim();
+  const part = (n: string | undefined, one: string, many: string) => (n ? `${Number(n)} ${Number(n) === 1 ? one : many}` : '');
+  return [part(m[1], 'día', 'días'), part(m[2], 'hora', 'horas'), part(m[3], 'minuto', 'minutos')].filter(Boolean).join(' y ');
+}
+
+/**
+ * Contacto de la entidad responsable: campos de autoridad (visor: CONTACTO, name_authority, contactName,
+ * email, phone, siteURL; ED-318: Service, ContactName, Email, Phone, SiteURL, IntervalBefore) y los
+ * teléfonos y correos que aparezcan en los textos publicados de la zona.
+ */
+function zoneContact(props: Props, texts: string[]): ContactInfo | null {
+  const authority = pick(props, 'name_authority', 'nameAuthority', 'authority', 'service');
+  const person = pick(props, 'CONTACTO', 'contactName');
+  const emailField = pick(props, 'email');
+  const phoneField = pick(props, 'phone');
+  const webField = pick(props, 'siteURL', 'sireURL');
+  // Las webs solo de los campos de contacto: en los mensajes suelen ser referencias normativas.
+  const own = extractContacts(authority, person, emailField);
+  const found = extractContacts(...texts);
+  const phones = [...parsePhoneField(phoneField), ...own.phones, ...found.phones].filter((p, i, all) => all.indexOf(p) === i);
+  const emails = [...own.emails, ...found.emails].filter((e, i, all) => all.indexOf(e) === i);
+  const web = (webField && normalizeWeb(webField)) || own.urls[0] || null;
+  const names = [contactName(authority), contactName(person)].filter((n, i, all) => n && all.indexOf(n) === i);
+  const interval = pick(props, 'intervalBefore');
+  if (!phones.length && !emails.length && !web && !names.length && !interval) return null;
+  return {
+    name: names.join(' · ') || 'Responsable de la zona',
+    phones: phones.map((number) => ({ number })),
+    emails,
+    web,
+    source: 'zone',
+    note: interval ? `Antelación mínima indicada: ${formatIsoDuration(interval)}.` : undefined,
+  };
+}
+
+/** "MADRID/BARAJAS · LEMD0" (sin repetir el identificador si coincide con el nombre). */
+export const zoneTitle = (zone: Pick<UasZone, 'name' | 'identifier'>) =>
+  zone.identifier && zone.identifier !== zone.name ? `${zone.name} · ${zone.identifier}` : zone.name;
+
+/**
+ * Contactos a mostrar en el aviso de una zona: el publicado para ella y, si le falta teléfono o correo,
+ * también el contacto oficial según el tipo de zona.
+ */
+export function zoneContacts(zone: Pick<UasZone, 'layer' | 'contact'>): ContactInfo[] {
+  const general = LAYER_CONTACTS[zone.layer];
+  const own = zone.contact;
+  if (!own) return general ? [general] : [];
+  return own.phones.length && own.emails.length ? [own] : general ? [own, general] : [own];
 }
 
 export function featureToZone(layer: ZoneLayerDef, feature: Feature, index: number): UasZone | null {
@@ -384,10 +445,7 @@ export function featureToZone(layer: ZoneLayerDef, feature: Feature, index: numb
     lower: limitText(props, 'LOWER') || pick(props, 'NIVEL_INF', 'LOWER_VAL'),
     upper: limitText(props, 'UPPER') || pick(props, 'NIVEL_SUP', 'UPPER_VAL', 'FLYING_LEVELS_DESC'),
     schedule: pick(props, 'WORKHRRMK_TXT', 'WORKHR_CODE', 'day'),
-    contact: [pick(props, 'CONTACTO', 'contactName', 'name_authority'), pick(props, 'email'), pick(props, 'phone'), pick(props, 'siteURL')]
-      .filter(Boolean)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
-      .join(' · '),
+    contact: zoneContact(props, [message, pick(props, 'REMARKS_TXT_S'), pick(props, 'DESCRIPTION')]),
     validity,
     severity: classifySeverity(layer, raw),
     geometry: feature.geometry,

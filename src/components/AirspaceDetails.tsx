@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { airspaceChecks } from '../logic/assessment';
+import { requestDraft, type MailDraft, type RequestContext } from '../logic/contactRequest';
 import type { DroneProfile } from '../logic/drone';
 import type { Check } from '../logic/assessment';
+import type { PilotProfile } from '../logic/pilot';
 import { compassPoint, formatDistance, type LngLatTuple } from '../lib/geo';
 import type { Surroundings } from '../map/surroundings';
 import { AERODROME_TYPE_LABEL, type NearbyAerodrome } from '../services/aerodromes';
-import { SEVERITY_LABEL, enaireViewerUrl, type UasZone, type ZoneQueryResult } from '../services/enaire';
+import { SEVERITY_LABEL, enaireViewerUrl, zoneContacts, zoneTitle, type UasZone, type ZoneQueryResult } from '../services/enaire';
+import { ContactList } from './ContactList';
 import { CheckList, ExternalLink, LevelPill, Notice, Section, Spinner } from './ui';
 
 interface AirspaceDetailsProps {
@@ -14,14 +17,19 @@ interface AirspaceDetailsProps {
   zonesError: string | null;
   aerodromes: NearbyAerodrome[];
   center: LngLatTuple;
+  /** Nombre del lugar o descripción de la zona dibujada (para las solicitudes). */
+  placeName: string | null;
   scope: 'point' | 'zone';
   drone: DroneProfile;
+  pilot: PilotProfile;
+  /** Hora elegida en la línea temporal (segundos UNIX). */
+  time: number;
   heightM: number;
   groundElevationM: number | null;
   surroundings: Surroundings | null;
 }
 
-function ZoneCard({ zone, check }: { zone: UasZone; check?: Check }) {
+function ZoneCard({ zone, check, draft }: { zone: UasZone; check?: Check; draft: MailDraft }) {
   const limits = [zone.lower && `desde ${zone.lower}`, zone.upper && `hasta ${zone.upper}`].filter(Boolean).join(' ');
   return (
     <li className={`zone-card zone-card--${zone.severity}`}>
@@ -43,7 +51,7 @@ function ZoneCard({ zone, check }: { zone: UasZone; check?: Check }) {
           <p>{zone.message}</p>
         </details>
       )}
-      {zone.contact && <span className="zone-card__meta">Contacto: {zone.contact}</span>}
+      <ContactList contacts={zoneContacts(zone)} draft={draft} />
     </li>
   );
 }
@@ -65,6 +73,15 @@ export function AirspaceDetails(props: AirspaceDetailsProps) {
   const relevant = (zones?.zones ?? []).filter((z) => z.layer !== 'aerodromes' && z.layer !== 'modelFields');
   const points = (zones?.zones ?? []).filter((z) => z.layer === 'aerodromes' || z.layer === 'modelFields');
   const otherChecks = summary.checks.filter((c) => !relevant.some((z) => z.uid === c.id));
+  const request: RequestContext = {
+    placeName: props.placeName,
+    point: center,
+    pointIsCenter: scope === 'zone',
+    time: props.time,
+    heightM: props.heightM,
+    drone: props.drone.generic ? null : props.drone,
+    pilot: props.pilot,
+  };
 
   return (
     <>
@@ -89,11 +106,18 @@ export function AirspaceDetails(props: AirspaceDetailsProps) {
         {relevant.length > 0 && (
           <ul className="zone-list">
             {relevant.map((z) => (
-              <ZoneCard key={z.uid} zone={z} check={summary.checks.find((c) => c.id === z.uid)} />
+              <ZoneCard
+                key={z.uid}
+                zone={z}
+                check={summary.checks.find((c) => c.id === z.uid)}
+                draft={requestDraft({ name: zoneTitle(z), kind: z.layerLabel }, request)}
+              />
             ))}
           </ul>
         )}
-        {otherChecks.length > 0 && <CheckList checks={otherChecks} />}
+        {otherChecks.length > 0 && (
+          <CheckList checks={otherChecks} draftFor={(c) => requestDraft({ name: c.value, kind: c.label }, request)} />
+        )}
         {points.length > 0 && <p className="small muted">Puntos ENAIRE en la zona: {points.map((p) => p.name).join(', ')}.</p>}
         <p className="small">
           <ExternalLink href={enaireViewerUrl(center)}>Abrir este lugar en el visor oficial ENAIRE Drones</ExternalLink>
