@@ -63,7 +63,7 @@ describe('assessment', () => {
       lower: '',
       upper: '',
       schedule: '',
-      contact: '',
+      contact: null,
       validity: '',
       severity: 'caution',
       geometry: { type: 'Point', coordinates: [0, 0] },

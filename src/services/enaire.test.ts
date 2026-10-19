@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ZONE_LAYER_BY_KEY, classifySeverity, esriToGeoJSON, featureToZone, htmlToText } from './enaire';
+import { ZONE_LAYER_BY_KEY, classifySeverity, esriToGeoJSON, featureToZone, formatIsoDuration, htmlToText, zoneContacts } from './enaire';
 
 describe('enaire', () => {
   it('convierte anillos Esri (exterior horario + hueco antihorario) a GeoJSON', () => {
@@ -108,7 +108,82 @@ describe('enaire', () => {
     );
     expect(zone?.name).toBe('CTR MADRID');
     expect(zone?.lower).toBe('60 M AGL');
-    expect(zone?.contact).toBe('cop@enaire.es');
+    expect(zone?.contact?.emails).toEqual(['cop@enaire.es']);
     expect(zone?.severity).toBe('caution');
+  });
+
+  it('extrae el contacto del responsable con teléfono y correo', () => {
+    const point = { type: 'Point' as const, coordinates: [-2.91, 43.3] };
+    const ed318 = featureToZone(
+      ZONE_LAYER_BY_KEY.aerodromeZones,
+      {
+        type: 'Feature',
+        properties: {
+          Identifier: 'LEBB0',
+          Name: 'BILBAO',
+          Service: 'Aeropuerto de Bilbao',
+          ContactName: 'Oficina de operaciones',
+          Phone: '944 86 96 63',
+          Email: 'Operaciones.BIO@aena.es',
+          SiteURL: 'www.aena.es',
+          IntervalBefore: 'P15D',
+        },
+        geometry: point,
+      },
+      0,
+    );
+    expect(ed318?.contact).toEqual({
+      name: 'Aeropuerto de Bilbao · Oficina de operaciones',
+      phones: [{ number: '+34944869663' }],
+      emails: ['operaciones.bio@aena.es'],
+      web: 'https://www.aena.es',
+      source: 'zone',
+      note: 'Antelación mínima indicada: 15 días.',
+    });
+    expect(zoneContacts(ed318!)).toHaveLength(1);
+
+    // Visor: contacto dentro del texto de la zona.
+    const viewer = featureToZone(
+      ZONE_LAYER_BY_KEY.infrastructure,
+      {
+        type: 'Feature',
+        properties: {
+          name: 'Central térmica',
+          REMARKS_TXT: 'Solicitar permiso al titular: seguridad@central.es, tfno. 985 12 34 56',
+          CONTACTO: 'Gestor de la central',
+        },
+        geometry: point,
+      },
+      0,
+    );
+    expect(viewer?.contact?.name).toBe('Gestor de la central');
+    expect(viewer?.contact?.phones).toEqual([{ number: '+34985123456' }]);
+    expect(viewer?.contact?.emails).toEqual(['seguridad@central.es']);
+  });
+
+  it('sin contacto propio (o incompleto) añade el contacto oficial del tipo de zona', () => {
+    const bare = featureToZone(
+      ZONE_LAYER_BY_KEY.controlled,
+      { type: 'Feature', properties: { IDENT_TXT: 'LECM', NAME_TXT: 'CTR MADRID' }, geometry: { type: 'Point', coordinates: [0, 0] } },
+      0,
+    )!;
+    expect(bare.contact).toBeNull();
+    const general = zoneContacts(bare);
+    expect(general).toHaveLength(1);
+    expect(general[0].source).toBe('general');
+    expect(general[0].phones.length).toBeGreaterThan(0);
+    expect(general[0].emails.length).toBeGreaterThan(0);
+
+    const onlyEmail = { layer: 'controlled' as const, contact: { ...general[0], phones: [], source: 'zone' as const } };
+    expect(zoneContacts(onlyEmail).map((c) => c.source)).toEqual(['zone', 'general']);
+    // Capas sin contacto oficial genérico (p. ej. puntos de aeromodelismo).
+    expect(zoneContacts({ layer: 'modelFields', contact: null })).toEqual([]);
+  });
+
+  it('traduce las duraciones ISO 8601', () => {
+    expect(formatIsoDuration('P15D')).toBe('15 días');
+    expect(formatIsoDuration('PT48H')).toBe('48 horas');
+    expect(formatIsoDuration('P1DT2H')).toBe('1 día y 2 horas');
+    expect(formatIsoDuration('5 días hábiles')).toBe('5 días hábiles');
   });
 });

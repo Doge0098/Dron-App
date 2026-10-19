@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { LEVEL_LABEL, type Check, type CheckLevel, type Level } from '../logic/assessment';
+import type { MailDraft } from '../logic/contactRequest';
+import { ContactList } from './ContactList';
 import { Icon } from './Icon';
 
 export function LevelPill({ level, children, large }: { level: Level; children?: ReactNode; large?: boolean }) {
@@ -35,7 +37,7 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
 
 const CHECK_ICON: Record<CheckLevel, string> = { ok: '✓', caution: '!', no: '✕', info: 'i' };
 
-export function CheckList({ checks }: { checks: Check[] }) {
+export function CheckList({ checks, draftFor }: { checks: Check[]; draftFor?: (check: Check) => MailDraft }) {
   return (
     <ul className="checks">
       {checks.map((c) => (
@@ -49,6 +51,7 @@ export function CheckList({ checks }: { checks: Check[] }) {
               <span className="check__value">{c.value}</span>
             </div>
             <p className="check__detail">{c.detail}</p>
+            {c.contacts?.length ? <ContactList contacts={c.contacts} draft={draftFor?.(c)} /> : null}
           </div>
         </li>
       ))}

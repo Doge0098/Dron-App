@@ -1,5 +1,6 @@
 import type { AsyncState } from '../hooks/useAsync';
 import type { DroneProfile } from '../logic/drone';
+import type { PilotProfile } from '../logic/pilot';
 import type { LngLatTuple } from '../lib/geo';
 import type { Surroundings } from '../map/surroundings';
 import type { NearbyAerodrome } from '../services/aerodromes';
@@ -7,6 +8,7 @@ import type { ZoneQueryResult } from '../services/enaire';
 import type { KpEntry } from '../services/kp';
 import type { PointForecast, WindHeight } from '../services/openMeteo';
 import { AirspaceDetails } from './AirspaceDetails';
+import { Icon } from './Icon';
 import { Notice, Spinner } from './ui';
 import { WeatherDetails } from './WeatherDetails';
 
@@ -17,6 +19,7 @@ interface PlacePanelProps {
   zones: AsyncState<ZoneQueryResult>;
   aerodromes: NearbyAerodrome[];
   drone: DroneProfile;
+  pilot: PilotProfile;
   time: number;
   start: number;
   hours: number;
@@ -24,17 +27,25 @@ interface PlacePanelProps {
   kp: KpEntry[] | null;
   surroundings: Surroundings | null;
   onSelectTime(time: number): void;
+  onLocate(): void;
+  locating: boolean;
 }
 
 export function PlacePanel(props: PlacePanelProps) {
   const { point, placeName, forecast, zones, aerodromes } = props;
   if (!point) {
     return (
-      <div className="empty">
-        <p>
-          <strong>Pulsa en cualquier punto del mapa</strong> o busca un lugar para ver el tiempo, el viento por alturas y las
-          restricciones para volar allí.
-        </p>
+      <div className="panel-body">
+        <div className="empty">
+          <p>
+            <strong>Pulsa en cualquier punto del mapa</strong> o busca un lugar para ver el tiempo, el viento por alturas y las
+            restricciones para volar allí.
+          </p>
+          <button type="button" className="button" onClick={props.onLocate} disabled={props.locating}>
+            <Icon name="locate" size={18} />
+            {props.locating ? 'Buscando tu ubicación…' : 'Usar mi ubicación'}
+          </button>
+        </div>
       </div>
     );
   }
@@ -67,8 +78,11 @@ export function PlacePanel(props: PlacePanelProps) {
         zonesError={zones.error}
         aerodromes={aerodromes}
         center={point}
+        placeName={placeName}
         scope="point"
         drone={props.drone}
+        pilot={props.pilot}
+        time={props.time}
         heightM={props.height}
         groundElevationM={forecast.data?.elevation ?? null}
         surroundings={props.surroundings}

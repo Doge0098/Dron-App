@@ -63,7 +63,7 @@ export function WeatherDetails(props: WeatherDetailsProps) {
         </div>
         <p className="verdict__summary">
           {level === 'ok'
-            ? 'Las condiciones meteorológicas son adecuadas para tu dron.'
+            ? `Las condiciones meteorológicas son adecuadas para ${drone.generic ? 'un dron ligero' : 'tu dron'}.`
             : level === 'caution'
               ? 'Se puede volar con precaución: revisa los puntos marcados.'
               : 'No se recomienda volar con estas condiciones.'}
@@ -118,7 +118,9 @@ export function WeatherDetails(props: WeatherDetailsProps) {
           {Number.isFinite(strongest.dir) ? `Viento ${describeDirection(strongest.dir)}. ` : ''}
           {Number.isFinite(strongest.speed) ? `${beaufort(strongest.speed).name} (Beaufort ${beaufort(strongest.speed).force}). ` : ''}
           {Number.isFinite(hour.gusts) ? `Rachas de ${Math.round(msToKmh(hour.gusts))} km/h. ` : ''}
-          Límite de tu dron: {Math.round(msToKmh(limit.limit))} km/h{limit.estimated ? ' (estimado)' : ''}.
+          {drone.generic
+            ? `Sin dron elegido se usa un límite prudente de ${Math.round(msToKmh(limit.limit))} km/h: elige el tuyo en «Piloto» para ajustarlo.`
+            : `Límite de tu dron: ${Math.round(msToKmh(limit.limit))} km/h${limit.estimated ? ' (estimado)' : ''}.`}
           {directionSpread != null && directionSpread > 45
             ? ` La dirección varía hasta ${Math.round(directionSpread)}° entre distintos puntos de la zona (viento racheado o turbulento).`
             : ''}

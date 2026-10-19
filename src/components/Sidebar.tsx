@@ -4,7 +4,7 @@ import { Icon, type IconName } from './Icon';
 export type TabKey = 'drone' | 'place' | 'zone' | 'rules';
 
 const TABS: { key: TabKey; label: string; icon: IconName }[] = [
-  { key: 'drone', label: 'Mi dron', icon: 'drone' },
+  { key: 'drone', label: 'Piloto', icon: 'user' },
   { key: 'place', label: 'Lugar', icon: 'pin' },
   { key: 'zone', label: 'Zona', icon: 'shape' },
   { key: 'rules', label: 'Normativa', icon: 'book' },

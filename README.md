@@ -9,11 +9,13 @@ dron concreto.
 
 ## Funciones
 
-- **Tu dron (marca y modelo).** Catálogo de 54 modelos (DJI, Autel, Parrot, Potensic, HoverAir, Skydio, Holy Stone, Ryze,
-  FIMI, Hubsan) con masa, marcado de clase UE (C0–C4 o sin marcado) según el registro de EASA, resistencia al viento,
-  protección IP y temperaturas de funcionamiento del fabricante. También se puede definir un dron a mano. La app calcula la
-  subcategoría (A1, A2 o A3) y los requisitos en España: registro de operador, Remote ID, formación, edad mínima, seguro y
-  privacidad.
+- **Piloto y dron.** En la pestaña «Piloto» se guardan tus datos (nombre y apellidos, ID de piloto o nº de operador y nº
+  de serie del dron) y se elige el dron. Catálogo de 54 modelos (DJI, Autel, Parrot, Potensic, HoverAir, Skydio, Holy
+  Stone, Ryze, FIMI, Hubsan) con masa, marcado de clase UE (C0–C4 o sin marcado) según el registro de EASA, resistencia al
+  viento, protección IP y temperaturas de funcionamiento del fabricante. También se puede definir un dron a mano. La app
+  calcula la subcategoría (A1, A2 o A3) y los requisitos en España: registro de operador, Remote ID, formación, edad
+  mínima, seguro y privacidad. Si el ID incluye la parte secreta del nº de operador (los 3 caracteres tras el guion), la
+  app avisa y nunca la incluye en las solicitudes.
 - **Clima en un mapa 3D con animaciones.**
   - Relieve 3D, edificios 3D y ortofoto PNOA del IGN.
   - **Viento animado con partículas** que avanzan en la dirección en la que sopla, coloreadas según la velocidad. Se puede
@@ -29,12 +31,26 @@ dron concreto.
   - Aeródromos y helipuertos cercanos, con sus zonas de protección del art. 41 del RD 517/2024 calculadas a partir de las
     pistas.
   - Detección aproximada, con los datos del mapa, de entorno urbano, carreteras y vías férreas, y parques nacionales.
+  - **Contacto de la entidad responsable** en cada aviso (en el panel y al pulsar la zona en el mapa): teléfono para
+    llamar y correo con la solicitud ya rellena (lugar, fecha y hora, altura, dron, nº de serie, piloto e ID). Se usa el
+    contacto que ENAIRE publica para la zona y, si falta el teléfono o el correo, el oficial según el tipo de zona
+    (ENAIRE, Aena, Defensa, CECAF, Interior…), recogido en `src/data/contacts.ts`.
 - **Dibujar una zona.** Se puede dibujar a mano alzada, como polígono, rectángulo o círculo. Para la zona dibujada la app
   muestra:
   - viento por alturas y su dirección (con la variación entre distintos puntos de la zona) y las rachas;
   - lluvia, visibilidad y temperatura;
   - zonas ENAIRE que la cruzan y aeródromos cercanos;
   - un veredicto «Apto / Precaución / No recomendado» para tu dron, hora a hora.
+
+## Tus datos
+
+Dron-App no tiene cuentas ni servidor propio. Tus datos de piloto, el dron elegido y las preferencias del mapa se guardan
+solo en el navegador (`localStorage`) y únicamente salen de él en los correos que tú decidas enviar.
+
+- Una instalación nueva empieza de cero: sin dron ni lugar preseleccionados.
+- Al subir `STORAGE_VERSION` (en `src/lib/storage.ts`) se borra lo guardado por versiones anteriores. La versión 2 elimina
+  los datos que quedaron de las pruebas.
+- «Borrar mis datos», al final de la pestaña «Piloto», lo elimina todo de ese dispositivo.
 
 ## Cómo decide si puedes volar
 
@@ -101,16 +117,16 @@ npm run data:aerodromes   # regenera src/data/aerodromes-es.json desde OurAirpor
 ```
 src/
   App.tsx                 estado global y composición de la interfaz
-  components/             paneles (dron, lugar, zona, normativa), barra temporal, brújula, leyenda…
+  components/             paneles (piloto y dron, lugar, zona, normativa), contactos, barra temporal, brújula…
   map/
     MapController.ts      mapa MapLibre 3D: estilos, capas, zonas, radar
     WeatherOverlay.ts     animación de partículas de viento, lluvia, nieve y rayos
     DrawController.ts     herramientas de dibujo (mano alzada, polígono, rectángulo, círculo)
     surroundings.ts       detección de entorno urbano e infraestructuras con los datos del mapa
   services/               Open-Meteo, ENAIRE, RainViewer, NOAA Kp, aeródromos, geocodificación
-  logic/                  clasificación del dron, evaluación del vuelo, análisis de zonas
-  data/                   catálogo de drones, aeródromos y normativa
-  lib/                    geodesia, viento, Sol (crepúsculo civil), fechas
+  logic/                  clasificación del dron, evaluación del vuelo, análisis de zonas, piloto, solicitudes
+  data/                   catálogo de drones, aeródromos, normativa y contactos oficiales
+  lib/                    geodesia, viento, Sol (crepúsculo civil), fechas, contactos, almacenamiento local
 ```
 
 ## Publicación

@@ -14,6 +14,8 @@ export interface DroneProfile {
   minTempC: number | null;
   maxTempC: number | null;
   camera: boolean;
+  /** Perfil de reserva mientras el usuario no ha elegido su dron (no se guarda). */
+  generic?: boolean;
 }
 
 export function profileFromModel(m: DroneModel): DroneProfile {
@@ -34,7 +36,7 @@ export function profileFromModel(m: DroneModel): DroneProfile {
 export const CUSTOM_PROFILE: DroneProfile = {
   modelId: null,
   brand: 'Otro',
-  model: 'Mi dron',
+  model: '',
   massG: 249,
   classLabel: 'legacy',
   maxWindMs: null,
@@ -43,6 +45,18 @@ export const CUSTOM_PROFILE: DroneProfile = {
   maxTempC: null,
   camera: true,
 };
+
+/**
+ * Perfil prudente para los cálculos mientras no se elige dron: un dron ligero (< 250 g) con cámara, el
+ * límite de viento estimado más bajo y sin protección contra el agua.
+ */
+export const GENERIC_PROFILE: DroneProfile = { ...CUSTOM_PROFILE, brand: '', model: '', generic: true };
+
+/** Nombre corto del dron para la interfaz. */
+export function droneName(p: DroneProfile): string {
+  if (p.generic) return 'Dron sin elegir';
+  return [p.brand === 'Otro' ? '' : p.brand, p.model].filter(Boolean).join(' ') || 'Mi dron';
+}
 
 export const CLASS_LABEL_TEXT: Record<ClassLabel, string> = {
   C0: 'C0 (< 250 g)',

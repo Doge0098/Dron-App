@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { AsyncState } from '../hooks/useAsync';
 import type { DroneProfile } from '../logic/drone';
+import type { PilotProfile } from '../logic/pilot';
 import { directionSpread, type ZoneAnalysis } from '../logic/zoneAnalysis';
 import { formatArea, formatDistance } from '../lib/geo';
 import type { DrawMode } from '../map/DrawController';
@@ -18,6 +19,7 @@ interface ZonePanelProps {
   zone: DrawnZone | null;
   analysis: AsyncState<ZoneAnalysis & { raw: PointForecast[] }>;
   drone: DroneProfile;
+  pilot: PilotProfile;
   time: number;
   start: number;
   hours: number;
@@ -124,8 +126,11 @@ export function ZonePanel(props: ZonePanelProps) {
           zonesError={data.zonesError}
           aerodromes={data.aerodromes}
           center={center}
+          placeName={`Zona dibujada de ${formatArea(zone.areaM2)}${zone.radiusM ? ` (radio ${formatDistance(zone.radiusM)})` : ''}`}
           scope="zone"
           drone={props.drone}
+          pilot={props.pilot}
+          time={time}
           heightM={height}
           groundElevationM={data.forecast?.elevation ?? null}
           surroundings={props.surroundings}

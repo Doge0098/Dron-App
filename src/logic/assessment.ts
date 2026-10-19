@@ -3,7 +3,9 @@
 import { formatDistance } from '../lib/geo';
 import { weatherCodeInfo } from '../lib/weatherCodes';
 import { msToKmh } from '../lib/wind';
+import { AERODROME_CONTACT, URBAN_CONTACT } from '../data/contacts';
 import { CTR_FREE_HEIGHT_M } from '../data/regulations';
+import type { ContactInfo } from '../lib/contacts';
 import { isLegalNight } from '../lib/sun';
 import type { Surroundings } from '../map/surroundings';
 import { AERODROME_TYPE_LABEL, type NearbyAerodrome } from '../services/aerodromes';
@@ -23,6 +25,8 @@ export interface Check {
   detail: string;
   /** Indicación concreta para la altura de vuelo elegida (p. ej. el límite de 60 m en CTR). */
   note?: string;
+  /** Entidades a las que dirigirse para coordinar o pedir permiso. */
+  contacts?: ContactInfo[];
 }
 
 export const LEVEL_LABEL: Record<Level, string> = {
@@ -267,6 +271,7 @@ function aerodromeCheck(n: NearbyAerodrome, ctx: AirspaceContext, enaireAvailabl
       label,
       level: 'no',
       value: name,
+      contacts: [AERODROME_CONTACT],
       detail: `Dentro del volumen de protección de un ${spec.label.toLowerCase()}: prohibido volar a cualquier altura salvo coordinación con el gestor${
         a.type === 'airport' ? ' y el proveedor ATS' : ''
       } (art. 43: respuesta en ≤ 1 mes).${n.zones.approximate ? ' Zona aproximada: el dataset no tiene la geometría de las pistas.' : ''}`,
@@ -287,7 +292,14 @@ function aerodromeCheck(n: NearbyAerodrome, ctx: AirspaceContext, enaireAvailabl
       if (ctx.heightM > maxAgl) level = 'no';
     }
   }
-  return { id: `aero-${a.id}`, label, level, value: name, detail: `${heightNote}. Por encima, coordinación obligatoria.` };
+  return {
+    id: `aero-${a.id}`,
+    label,
+    level,
+    value: name,
+    detail: `${heightNote}. Por encima, coordinación obligatoria.`,
+    contacts: [AERODROME_CONTACT],
+  };
 }
 
 function surroundingsChecks(s: Surroundings | null, drone: DroneProfile, scope: 'point' | 'zone'): Check[] {
@@ -314,6 +326,7 @@ function surroundingsChecks(s: Surroundings | null, drone: DroneProfile, scope: 
       detail: onlyA3
         ? 'Tu dron solo puede volar en A3, que no permite vuelos en entorno urbano.'
         : 'Comunica el vuelo al Ministerio del Interior con ≥ 5 días naturales de antelación, no sobrevueles edificios, casas ni patios y respeta la distancia a edificios (5 m con C1 de ≥ 250 g; 30 m con C2 en A2).',
+      contacts: onlyA3 ? undefined : [URBAN_CONTACT],
     });
   }
   if (s.roads.length || s.railways) {
